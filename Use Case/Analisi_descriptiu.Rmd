@@ -1,0 +1,503 @@
+---
+title: "Anàlisi descriptiu"
+author: "Neus"
+date: "2023-04-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Anàlisi descriptiu
+
+```{r, warning=FALSE, message=FALSE}
+setwd('C:/Users/neusv/OneDrive/Documentos/UAB/4t/TFG/DadesEstudiAfil')
+load("C:/Users/neusv/OneDrive/Documentos/UAB/4t/TFG/DadesEstudiAfil/Taules_dataframe.Rdata")
+library(lubridate)
+library(ggplot2)
+library(dplyr)
+library(kableExtra)
+```
+
+
+### Coses a tenir en compte:
+
+```{r}
+all(baixa$ID_PERSONA %in% afiliacio$ID_PERSONA)
+```
+
+- Tenim persones que s'han donat d'alta per primer cop (encara no estan al registre de baixes)
+- No tenim informació del tipus de pagament d'aquelles persones que han estat afiliades però que actualment no ho estan
+- No totes les persones que reben assessorament/formacio han estat alguna vegada afiliades.
+
+### Baixes
+
+
+```{r}
+baixa$DALTA<-as.Date(baixa$DALTA, "%d/%m/%Y")
+baixa$DBAIXA<-as.Date(baixa$DBAIXA, "%d/%m/%Y")
+
+baixa <- baixa %>% filter(baixa$DALTA > '2004-12-31')
+afiliacio <- afiliacio %>% filter(afiliacio$DALTA > '2004-12-31')
+#min(baixa$DALTA)
+
+# Hem de separar segons el tipus de pagament
+
+pagadors_mensuals <-  afiliacio %>% filter(TIPPAG_PERIODO =='M')
+pagadors_mensuals <- pagadors_mensuals$ID_PERSONA
+
+pagadors_trimestrals <-  afiliacio %>% filter(TIPPAG_PERIODO =='T')
+pagadors_trimestrals <- pagadors_trimestrals$ID_PERSONA
+
+# ELIMINO CASOS ON DBAIXA < DALTA I AQUELLS AMB DBAIXA > DACTUAL
+
+baixa <- baixa %>% filter(baixa$DBAIXA < Sys.Date()) 
+baixa <- baixa %>% filter(baixa$DBAIXA > baixa$DALTA)
+```
+
+
+
+**Baixes de pagadors mensuals**
+
+```{r, warning=FALSE}
+
+baixa_pagadors_mensuals <- baixa %>% filter(baixa$ID_PERSONA %in% pagadors_mensuals) 
+
+baixes_mensuals_pagadors_mensuals<-data.frame(table(baixa_pagadors_mensuals$DBAIXA))
+names(baixes_mensuals_pagadors_mensuals)<- c('date', 'baixes')
+baixes_mensuals_pagadors_mensuals$date <- as.Date(baixes_mensuals_pagadors_mensuals$date)
+baixes_mensuals_pagadors_mensuals$year <- as.numeric(format(baixes_mensuals_pagadors_mensuals$date,'%Y'))
+baixes_mensuals_pagadors_mensuals$month <- as.numeric(format(baixes_mensuals_pagadors_mensuals$date,'%m'))
+
+baixes_mensuals_pagadors_mensuals<- baixes_mensuals_pagadors_mensuals[,c(2,4)]
+baixes_mensuals_pagadors_mensuals <- 
+  baixes_mensuals_pagadors_mensuals %>%
+  group_by(month) %>%
+  summarise_each(funs(sum))
+
+
+ggplot(baixes_mensuals_pagadors_mensuals, aes(x = factor(month), y = baixes, fill = "#F5725E")) +
+  geom_col(position = "dodge", width = 0.8) +
+  ggtitle("Suma de baixes de pagadors mensuals per cada mes de l'any des de 2005") +
+  labs(x = "Month", y = "Baixes", fill = "Color") +
+  scale_fill_manual(values = "#F5725E") +
+  theme_classic() +
+  guides(fill=FALSE)
+
+
+
+```
+
+
+
+**Baixes de pagadors trimestrals**
+
+```{r, warning=FALSE}
+
+baixa_pagadors_trimestrals <- baixa %>% filter(baixa$ID_PERSONA %in% pagadors_trimestrals) 
+
+baixes_mensuals_pagadors_trimestrals<-data.frame(table(baixa_pagadors_trimestrals$DBAIXA))
+names(baixes_mensuals_pagadors_trimestrals)<- c('date', 'baixes')
+baixes_mensuals_pagadors_trimestrals$date <- as.Date(baixes_mensuals_pagadors_trimestrals$date)
+baixes_mensuals_pagadors_trimestrals$year <- as.numeric(format(baixes_mensuals_pagadors_trimestrals$date,'%Y'))
+baixes_mensuals_pagadors_trimestrals$month <- as.numeric(format(baixes_mensuals_pagadors_trimestrals$date,'%m'))
+
+baixes_mensuals_pagadors_trimestrals<- baixes_mensuals_pagadors_trimestrals[,c(2,4)]
+baixes_mensuals_pagadors_trimestrals <- 
+  baixes_mensuals_pagadors_trimestrals %>%
+  group_by(month) %>%
+  summarise_each(funs(sum))
+
+
+ggplot(baixes_mensuals_pagadors_trimestrals, aes(x = factor(month), y = baixes, fill = "#F5725E")) +
+  geom_col(position = "dodge", width = 0.8) +
+  ggtitle("Suma de baixes de pagadors trimestrals per cada mes de l'any des de 2005") +
+  labs(x = "Month", y = "Baixes", fill = "Color") +
+  scale_fill_manual(values = "#F5725E") +
+  theme_classic() +
+  guides(fill=FALSE)
+
+```
+
+
+
+
+**Baixes per any**
+
+
+```{r, warning=FALSE}
+baixes_mensuals<-data.frame(table(baixa$DBAIXA))
+names(baixes_mensuals)<- c('date', 'baixes')
+baixes_mensuals$date <- as.Date(baixes_mensuals$date)
+baixes_mensuals$year <- as.numeric(format(baixes_mensuals$date,'%Y'))
+baixes_mensuals$month <- as.numeric(format(baixes_mensuals$date,'%m'))
+
+for (y in unique(baixes_mensuals$year)){
+  
+  subdata<-  baixes_mensuals %>% filter(year == y)
+  subdata <- subdata %>%
+  group_by(month) %>%
+  summarise(baixes = sum(baixes))
+  
+  p = subdata %>%
+      ggplot( aes(x=as.factor(month), y=baixes, fill = "#F5725E")) +
+      geom_col(position = "dodge", width = 0.8) +
+      ggtitle(paste("Baixes mensuals any", y)) +
+      labs(x = "Month", y = "Baixes", fill = "Color") +
+      scale_fill_manual(values = "#F5725E") +
+      theme_classic() +
+      guides(fill=FALSE)
+  
+  print(p)
+}
+  
+  
+```
+
+
+
+
+**Baixes agrupades per timestre**
+
+
+
+```{r, warning=FALSE}
+
+trim_1 = c(1,2,3)
+trim_2 = c(4,5,6)
+trim_3 = c(7,8,9)
+trim_4 = c(10,11,12)
+
+for (i in 1:dim(baixes_mensuals[1])){
+  if (baixes_mensuals$month[i] %in% trim_1){baixes_mensuals$trim[i] = 1}
+  if (baixes_mensuals$month[i] %in% trim_2){baixes_mensuals$trim[i] = 2}
+  if (baixes_mensuals$month[i] %in% trim_3){baixes_mensuals$trim[i] = 3}
+  if (baixes_mensuals$month[i] %in% trim_4){baixes_mensuals$trim[i] = 4}  
+}
+
+
+baixes_trimestrals <- baixes_mensuals[,c(2,3,5)]
+baixes_trimestrals <- 
+  baixes_trimestrals %>%
+  group_by(year, trim) %>%
+  summarise_each(funs(sum))
+
+
+ggplot(baixes_trimestrals, aes(trim, baixes, group=factor(year), colour=factor(year))) +
+  geom_line() +
+  geom_point() +
+  geom_text(aes(label=year), hjust=-0.2, vjust=-0.5) +
+  labs(x="Month", colour="Year") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+
+
+
+```
+
+
+
+
+
+**Nombre de baixes per persona**
+
+```{r}
+baixes_per_persona<-data.frame(table(baixa$ID_PERSONA))
+names(baixes_per_persona)<- c('ID_PERSONA', 'N_baixes')
+boxplot(baixes_per_persona$N_baixes, horizontal = T, col = "#F5725E", main = "Boxplot nombre de baixes per persona")
+```
+
+
+
+
+
+
+**Causa baixes**
+
+```{r}
+causa_baixa<- data.frame(table(baixa$CAUSA))
+names(causa_baixa)<- c('CAUSA', 'Freq')
+causa_baixa<-merge(causa_baixa, causa)
+causa_baixa<- causa_baixa[,c(2,3)]
+
+ggplot(causa_baixa, aes(x = DESCRIPCIO, y = Freq, fill = DESCRIPCIO)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank(),
+        axis.text.y = element_text(size=10), axis.title.y = element_text(size=12)) +
+  scale_fill_discrete(name = "Descripció")+
+  labs(title = "Causa de la baixa")
+  
+```
+
+
+
+**Causa de les baixes voluntaries**
+
+```{r}
+causa2_baixa<- data.frame(table(baixa$CAUSA2))
+names(causa2_baixa)<- c('CAUSA2', 'Freq')
+causa2_baixa<-merge(causa2_baixa, causa2)
+causa2_baixa<- causa2_baixa[,c(2,4)]
+
+ggplot(causa2_baixa, aes(x = DESCRIPCIO, y = Freq, fill = DESCRIPCIO)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank(),
+        axis.text.y = element_text(size=10), axis.title.y = element_text(size=12)) +
+  scale_fill_discrete(name = "Descripció")+
+  labs(title = "Causa de les baixes voluntàries")
+  
+```
+
+
+
+
+### Altes
+
+
+```{r}
+afiliats_actual$DALTA<-as.Date(afiliats_actual$DALTA, "%d/%m/%Y")
+
+afiliats_actual <- afiliats_actual %>% filter(afiliats_actual$DALTA > '2004-12-31')
+
+id_persones_baixa <- baixa$ID_PERSONA
+id_persones_alta <- afiliats_actual$ID_PERSONA
+
+if (any(id_persones_baixa %in% id_persones_alta)) {
+print('Hi ha gent que es dona de baixa i després es torna a afiliar')}
+
+```
+
+
+
+**Suma d'altes mensuals**
+
+```{r, warning=FALSE}
+altes<- unique(rbind(afiliats_actual[,c('ID_PERSONA', 'DALTA')],baixa[,c('ID_PERSONA', 'DALTA')]))
+
+altes_mensuals<-data.frame(table(altes$DALTA))
+names(altes_mensuals)<- c('date', 'altes')
+altes_mensuals$date <- as.Date(altes_mensuals$date)
+altes_mensuals$year <- as.numeric(format(altes_mensuals$date,'%Y'))
+altes_mensuals$month <- as.numeric(format(altes_mensuals$date,'%m'))
+
+altes_mensuals<- altes_mensuals[,c(2,4)]
+altes_mensuals <- 
+  altes_mensuals %>%
+  group_by(month) %>%
+  summarise_each(funs(sum))
+
+ggplot(altes_mensuals, aes(x = factor(month), y = altes, fill = "darkolivegreen2")) +
+  geom_col(position = "dodge", width = 0.8) +
+  ggtitle("Suma d'altes per cada mes de l'any des de 2005") +
+  labs(x = "Month", y = "Altes", fill = "Color") +
+  scale_fill_manual(values = "darkolivegreen2") +
+  theme_classic() +
+  guides(fill=FALSE)
+```
+
+
+
+
+**Altes per any**
+
+```{r}
+
+
+altes_mensuals<-data.frame(table(altes$DALTA))
+names(altes_mensuals)<- c('date', 'altes')
+altes_mensuals$date <- as.Date(altes_mensuals$date)
+altes_mensuals$year <- as.numeric(format(altes_mensuals$date,'%Y'))
+altes_mensuals$month <- as.numeric(format(altes_mensuals$date,'%m'))
+
+for (y in unique(altes_mensuals$year)){
+  
+  subdata<-  altes_mensuals %>% filter(year == y)
+  subdata <- subdata %>%
+  group_by(month) %>%
+  summarise(altes = sum(altes))
+  
+  p = subdata %>%
+      ggplot( aes(x=as.factor(month), y=altes, fill = "darkolivegreen2")) +
+      geom_col(position = "dodge", width = 0.8) +
+      ggtitle(paste("Altes mensuals any", y)) +
+      labs(x = "Month", y = "Altes", fill = "Color") +
+      scale_fill_manual(values = "darkolivegreen2") +
+      theme_classic() +
+      guides(fill=FALSE)
+  
+  print(p)
+}
+```
+
+
+
+
+
+**Altes agrupades per timestre**
+
+
+```{r, warning=FALSE}
+
+for (i in 1:dim(baixes_mensuals[1])){
+  if (altes_mensuals$month[i] %in% trim_1){altes_mensuals$trim[i] = 1}
+  if (altes_mensuals$month[i] %in% trim_2){altes_mensuals$trim[i] = 2}
+  if (altes_mensuals$month[i] %in% trim_3){altes_mensuals$trim[i] = 3}
+  if (altes_mensuals$month[i] %in% trim_4){altes_mensuals$trim[i] = 4}  
+}
+
+
+altes_trimestrals <- altes_mensuals[,c(2,3,5)]
+altes_trimestrals <- 
+  altes_trimestrals %>%
+  group_by(year, trim) %>%
+  summarise_each(funs(sum))
+
+
+ggplot(altes_trimestrals, aes(trim, altes, group=factor(year), colour=factor(year))) +
+  geom_line() +
+  geom_point() +
+  geom_text(aes(label=year), hjust=-0.2, vjust=-0.5) +
+  labs(x="Trim", colour="Year") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+
+
+
+```
+
+
+```{r}
+altes_per_persona<-data.frame(table(altes$ID_PERSONA))
+names(altes_per_persona)<- c('ID_PERSONA', 'N_altes')
+
+boxplot(altes_per_persona$N_altes, horizontal = T, col = "darkolivegreen2", main = "Boxplot nombre d'altes per persona")
+```
+
+```{r}
+head(baixes_per_persona[order(baixes_per_persona$N_baixes, decreasing = T),])
+head(altes_per_persona[order(altes_per_persona$N_altes, decreasing = T),])
+
+```
+
+```{r}
+
+tab1<-data.frame(table(baixes_per_persona$N_baixes))
+names(tab1)<- c('N baixes', 'N persones')
+tab2<-data.frame(table(altes_per_persona$N_altes))
+names(tab2)<- c('N altes', 'N persones')
+
+knitr::kable(
+  list(tab1, tab2),
+  caption = 'Altes vs baixes',
+  booktabs = TRUE, valign = '\t'
+) 
+
+```
+
+
+
+### Durada de l'afiliació 
+
+
+```{r}
+
+baixa$DALTA<-as.Date(baixa$DALTA, "%Y/%m/%d")
+baixa$DBAIXA<-as.Date(baixa$DBAIXA, "%Y/%m/%d")
+
+baixa$DURADA<- elapsed_months(baixa$DBAIXA,baixa$DALTA)
+
+boxplot(registres$num_trimestres, horizontal = T, main= "Durada de les afiliacions (en trim)", col = 'thistle2')
+```
+
+
+
+### Formació / Assessorament
+
+```{r}
+formacio$INICI<-as.Date(formacio$INICI, "%d/%m/%Y")
+formacio <- formacio %>% filter(formacio$INICI > '2004-12-31')
+persones_formacio<- formacio$ID_PERSONA
+
+formacions_per_persona<-data.frame(table(persones_formacio))
+pie(table(formacions_per_persona$Freq), main = "Nombre de formacions per persona que han realitzat almenys una")
+```
+
+
+```{r}
+
+assessorament$DALTA<-as.Date(assessorament$DALTA, "%d/%m/%Y")
+assessorament <- assessorament %>% filter(assessorament$DALTA > '2004-12-31')
+persones_assessorament<- assessorament$ID_PERSONA
+
+assessorament_per_persona<-data.frame(table(persones_assessorament))
+pie(table(assessorament_per_persona$Freq), main = "Nombre d'assessoraments per persona que han realitzat almenys un")
+```
+
+
+
+
+```{r}
+
+tots_id_persones<-unique(c(id_persones_alta, id_persones_baixa))
+n <- length(tots_id_persones)
+formacio_percentatge<-sum(unique(persones_formacio) %in% tots_id_persones)/n * 100
+assessorament_percentatge<-sum(unique(persones_assessorament) %in% tots_id_persones)/n * 100
+
+assessorament_counts<- data.frame('ASSESSORAMENT' = c('Sí', 'No'), percentatge = c(assessorament_percentatge, 100-assessorament_percentatge))
+formacio_counts<- data.frame('FORMACIO' = c('Sí', 'No'), percentatge2 = c(formacio_percentatge, 100-formacio_percentatge))
+
+assessorament_labels <- assessorament_counts$percentatge
+formacio_labels <- formacio_counts$percentatge2
+
+
+ggplot() +
+  geom_bar(data = assessorament_counts, aes(x = 1, y = percentatge, fill = ASSESSORAMENT), stat = "identity", width = 0.4) +
+  geom_bar(data = formacio_counts, aes(x = 2, y = percentatge2, fill = FORMACIO), stat = "identity", width = 0.4) +
+  scale_fill_manual(values = c("firebrick2", "palegreen3", "orange", "blue", "purple", "grey")) +
+  coord_flip() +
+  labs(title = "Percentatge d'ús dels serveis d'assessorament i formació", x = NULL, y = "Percentatge", fill = NULL) +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  scale_y_continuous(limits = c(0, 100), expand = c(0, 0)) +
+  scale_x_continuous(breaks = c(1, 2), labels = c("ASSESSORAMENT", "FORMACIO"))+
+  geom_text(data = formacio_counts, aes(x = 2, y = percentatge2/2, label = paste0(round(percentatge2,1),"%")), size = 3, fontface = "bold")+
+  geom_text(data = assessorament_counts, aes(x = 1, y = percentatge/2, label = paste0(round(percentatge,1),"%")), size = 3, fontface = "bold")
+
+  
+ 
+
+```
+
+
+### Eleccions
+
+
+```{r}
+
+centres_amb_eleccions<-unique(acta$CODICTREB)
+agrupacions_amb_eleccions <- centres_amb_eleccions[grep("^GES", centres_amb_eleccions)]
+agrupacions_amb_eleccions<-relagreess %>% filter(CODI_AGRUPACIO %in% agrupacions_amb_eleccions)
+centres_amb_eleccions<-c(centres_amb_eleccions[-grep("^GES", centres_amb_eleccions)], agrupacions_amb_eleccions)
+
+
+persones_amb_eleccions <- subset(baixa, CODICTREB %in% centres_amb_eleccions)
+persones_amb_eleccions <- unique(persones_amb_eleccions$ID_PERSONA)
+afiliats_amb_eleccions <- subset(afiliacio, CODICTREB %in% centres_amb_eleccions)
+persones_amb_eleccions <- unique(c(persones_amb_eleccions, afiliats_amb_eleccions))
+
+eleccions_percentatge<-sum(persones_amb_eleccions %in% tots_id_persones)/n * 100
+
+assessorament_counts<- data.frame('ELECCIONS' = c('Sí', 'No'), percentatge = c(round(eleccions_percentatge,1), round(100-eleccions_percentatge,1)))
+
+
+ggplot() +
+  geom_bar(data = assessorament_counts, aes(x = ELECCIONS, y = percentatge, fill = ELECCIONS), stat = "identity", width = 0.4) +
+  geom_text(data = assessorament_counts, aes(x = ELECCIONS, y = percentatge, label = paste0(percentatge, "%")), 
+            position = position_stack(vjust = 0.5)) +
+  coord_flip()
+
+```
+
